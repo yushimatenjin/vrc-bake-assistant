@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 - Compile Fix
+
+- Unity 2022.3.22f1で `EditorGUILayout.IntPopup` の `GUIContent` ラベル付き呼び出しがコンパイルエラーになる問題を修正しました。
+- Reflection Probe解像度欄は `PrefixLabel + IntPopup` の構成に変更しました。
+- UdonSharpのscene upgrade停止は、このC#コンパイルエラーの連鎖なので、本修正後に解消する想定です。
+
 ## 0.1.3
 
 - 練習シーンのHierarchyを `01_Geometry` / `03_Lights` / `04_LightProbes` / `05_ReflectionProbes` などに整理しました。

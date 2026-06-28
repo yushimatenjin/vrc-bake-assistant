@@ -41,7 +41,7 @@ scripts/                                       # Release zip / vpm.json生成ス
 4. ローカルまたはActionsで `python scripts/package_release.py` と `python scripts/update_vpm_json.py` を実行する
 5. `Actions > Deploy GitHub Pages` を手動実行
 6. `https://yushimatenjin.github.io/vrc-bake-assistant/` を開いて確認
-7. `https://yushimatenjin.github.io/vrc-bake-assistant/packages/com.yushimatenjin.vrc-bake-assistant-0.1.3.zip` がダウンロードできるか確認
+7. `https://yushimatenjin.github.io/vrc-bake-assistant/packages/com.yushimatenjin.vrc-bake-assistant-0.1.4.zip` がダウンロードできるか確認
 8. ALCOMで `https://yushimatenjin.github.io/vrc-bake-assistant/vpm.json` を追加してインストール確認
 
 ## Local build
@@ -54,7 +54,7 @@ python scripts/update_vpm_json.py
 生成物:
 
 ```text
-Dist/com.yushimatenjin.vrc-bake-assistant-0.1.3.zip
+Dist/com.yushimatenjin.vrc-bake-assistant-0.1.4.zip
 Website/vpm.json
 Website/index.json
 ```
@@ -78,7 +78,7 @@ MIT License. 詳細は `LICENSE.md` を参照してください。
 開発初期は同じversionのzipを作り直すことが多いため、この版ではRepository Listingの `zipSHA256` を省略しています。安定版に入ってから、versionを必ず上げる運用とセットで `zipSHA256` を戻すのがおすすめです。
 
 
-## 0.1.3 見える化改善
+## 0.1.4 見える化改善
 
 練習シーンHierarchy整理、RendererのBake参加リスト、Light一覧、前回GI Bake情報、新規ベイク候補、Light Probe手動サイズ、Probe範囲ガイドを追加しました。
 

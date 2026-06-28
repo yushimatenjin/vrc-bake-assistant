@@ -9,12 +9,12 @@
   "packages": {
     "com.yushimatenjin.vrc-bake-assistant": {
       "versions": {
-        "0.1.3": {
+        "0.1.4": {
           "name": "com.yushimatenjin.vrc-bake-assistant",
           "displayName": "VRC Bake Assistant",
-          "version": "0.1.3",
+          "version": "0.1.4",
           "unity": "2022.3",
-          "description": "VRChatワールド制作者向けの無料ライトベイク手順化ツール。ライト一覧、Bake対象Renderer一覧、Light Probe範囲ガイド、練習シーン階層整理、基本ライト、Light Probe、Reflection Probe、Static/UV2チェック、Bake開始をUnityエディター上で案内します。",
+          "description": "VRChatワールド制作者向けの無料ライトベイク手順化ツール。0.1.4ではUnity 2022.3のEditorGUILayout.IntPopup互換性を修正しました。ライト一覧、Bake対象Renderer一覧、Light Probe範囲ガイドなどをUnityエディター上で案内します。",
           "author": {
             "name": "yushimatenjin",
             "email": "yushimatenjin@users.noreply.github.com",
@@ -32,7 +32,7 @@
             "Editor Extension"
           ],
           "category": "VRChat Worlds",
-          "url": "https://yushimatenjin.github.io/vrc-bake-assistant/packages/com.yushimatenjin.vrc-bake-assistant-0.1.3.zip",
+          "url": "https://yushimatenjin.github.io/vrc-bake-assistant/packages/com.yushimatenjin.vrc-bake-assistant-0.1.4.zip",
           "changelogUrl": "https://github.com/yushimatenjin/vrc-bake-assistant/blob/main/Packages/com.yushimatenjin.vrc-bake-assistant/CHANGELOG.md",
           "documentationUrl": "https://yushimatenjin.github.io/vrc-bake-assistant/"
         }

@@ -40,7 +40,10 @@ Unityのメニューから `Tools > YushimaTenjin > VRC Bake Assistant` を開�
 6. `ライトマップをベイク開始`
 7. 見た目が良ければ `PC向け標準` や `仕上げ確認（重い）` に上げる
 
-## 0.1.3 の主な改善
+## 0.1.4 の主な改善
+
+- Unity 2022.3.22f1でReflection Probe解像度欄がコンパイルエラーになる問題を修正。
+
 
 - 練習シーンのHierarchy名を整理し、Guide / BakeTargets / NotBaked / Lights / Probes / Camera でまとまるようにしました。
 - Renderer一覧を追加し、Bake参加 / 未参加、UV2確認、動的っぽい名前の目安を見ながら切り替えられるようにしました。

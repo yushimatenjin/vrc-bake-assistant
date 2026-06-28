@@ -816,9 +816,10 @@ namespace VRCBakeAssistant
                     }
                 }
 
-                reflectionProbeResolution = EditorGUILayout.IntPopup(new GUIContent("Reflection Probe解像度", "反射の解像度です。まずは128、重い場合は64。"), reflectionProbeResolution,
+                reflectionProbeResolution = EditorGUILayout.IntPopup("Reflection Probe解像度", reflectionProbeResolution,
                     new[] { "64", "128", "256", "512" },
                     new[] { 64, 128, 256, 512 });
+                EditorGUILayout.HelpBox("反射の解像度です。まずは128、重い場合は64。数値を上げるほど反射はきれいになりますが、ベイク時間と容量が増えます。", MessageType.None);
                 reflectionProbeBoxProjection = EditorGUILayout.ToggleLeft("Box Projectionを有効化", reflectionProbeBoxProjection);
 
                 if (GUILayout.Button(selectionOnly ? "選択範囲にLight Probe Gridを作成/更新" : "シーン範囲にLight Probe Gridを作成/更新"))
