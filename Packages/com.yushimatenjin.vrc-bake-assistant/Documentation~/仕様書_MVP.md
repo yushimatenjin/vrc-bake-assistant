@@ -13,7 +13,7 @@ VRChatワールド制作者が、ライトベイク、Light Probe、Reflection P
 ## 主要価値
 
 - 診断結果を見ながら作業できる
-- Practice / Quest / PC / Final のプリセットで試し焼きしやすい
+- 試し焼き / Quest向け軽量 / PC向け標準 / 仕上げ確認 のプリセットで試し焼きしやすい
 - Probe不足、UV2不足、Static未設定を見つけられる
 - 1つのEditorWindowで手順を完結できる
 

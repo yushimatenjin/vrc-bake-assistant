@@ -23,10 +23,10 @@
 ## おすすめワークフロー
 
 1. シーンを保存・バックアップ
-2. Practice Fastで試し焼き
+2. 試し焼き（早い）で試し焼き
 3. ライトの位置・色・強さを調整
 4. Light Probe / Reflection Probeを配置
-5. PC BalancedやQuest Lightで本番寄りに焼く
+5. PC向け標準やQuest向け軽量で本番寄りに焼く
 6. VRChat SDKでビルド・実機確認
 
 ## 販売時の訴求点

@@ -14,7 +14,7 @@ UnityのLighting画面、Staticチェック、Probeが無いシーンを素早�
 「VRC Bake Assistantは、ワールド制作者向けのベイク手順ナビです。ボタンを上から順に押すだけで、診断、プリセット適用、Probe生成、ベイク開始まで進められます。」
 
 画面：
-Tools > VRC Bake Assistant > Open。
+Tools > YushimaTenjin > VRC Bake Assistant。
 
 ## 0:25 - 0:55 練習シーン
 
@@ -35,7 +35,7 @@ Light Probe Grid作成 → Reflection Probe作成 → Sceneビューで確認。
 ## 1:35 - 2:10 ベイク
 
 ナレーション：
-「Practice Fastで試し焼き、PC Balancedで本番寄り、Quest Lightで軽量寄り。BakeAsyncでベイクを開始して、進捗もウィンドウ内で確認できます。」
+「試し焼き（早い）で試し焼き、PC向け標準で本番寄り、Quest向け軽量で軽量寄り。BakeAsyncでベイクを開始して、進捗もウィンドウ内で確認できます。」
 
 操作：
 Generate Lighting / BakeAsync。

@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build package zip for SHA256
+      - name: Build VPM package zip
         run: python scripts/package_release.py
-      - name: Generate vpm.json and index.json
+      - name: Generate vpm.json, index.json and Pages-hosted package zip
         run: python scripts/update_vpm_json.py
       - name: Configure Pages
         uses: actions/configure-pages@v5
