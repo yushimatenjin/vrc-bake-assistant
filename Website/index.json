@@ -1,0 +1,43 @@
+{
+  "name": "YushimaTenjin VPM Repository",
+  "id": "com.yushimatenjin.vpm",
+  "url": "https://yushimatenjin.github.io/vrc-bake-assistant/vpm.json",
+  "author": {
+    "name": "yushimatenjin",
+    "url": "https://github.com/yushimatenjin"
+  },
+  "packages": {
+    "com.yushimatenjin.vrc-bake-assistant": {
+      "versions": {
+        "0.1.0": {
+          "name": "com.yushimatenjin.vrc-bake-assistant",
+          "displayName": "VRC Bake Assistant",
+          "version": "0.1.0",
+          "unity": "2022.3",
+          "description": "VRChatワールド制作者向けの無料ライトベイク手順化ツール。Lightmap、Light Probe、Reflection Probe、Static、UV2チェック、Bake開始をUnityエディター上で案内します。",
+          "author": {
+            "name": "yushimatenjin",
+            "email": "yushimatenjin@users.noreply.github.com",
+            "url": "https://github.com/yushimatenjin"
+          },
+          "license": "MIT",
+          "keywords": [
+            "VRChat",
+            "VRC",
+            "World",
+            "Lightmap",
+            "Light Probe",
+            "Reflection Probe",
+            "Bake",
+            "Editor Extension"
+          ],
+          "category": "VRChat Worlds",
+          "url": "https://github.com/yushimatenjin/vrc-bake-assistant/releases/download/0.1.0/com.yushimatenjin.vrc-bake-assistant-0.1.0.zip",
+          "changelogUrl": "https://github.com/yushimatenjin/vrc-bake-assistant/releases/tag/0.1.0",
+          "documentationUrl": "https://yushimatenjin.github.io/vrc-bake-assistant/",
+          "zipSHA256": "58a65f92b7f1bf45d9bebf2c4b88577723d8dc7dbccf43ea438aa30724b5b576"
+        }
+      }
+    }
+  }
+}

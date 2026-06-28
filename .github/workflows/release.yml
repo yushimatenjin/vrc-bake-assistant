@@ -1,0 +1,39 @@
+name: Build Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build VPM package zip
+        run: python scripts/package_release.py
+
+      - name: Read package metadata
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(python -c "import json; print(json.load(open('Packages/com.yushimatenjin.vrc-bake-assistant/package.json'))['version'])")
+          NAME=$(python -c "import json; print(json.load(open('Packages/com.yushimatenjin.vrc-bake-assistant/package.json'))['name'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "zip=$NAME-$VERSION.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          ZIP: ${{ steps.meta.outputs.zip }}
+        shell: bash
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" "Dist/$ZIP" --clobber
+          else
+            gh release create "$VERSION" "Dist/$ZIP" --title "$VERSION" --notes "VRC Bake Assistant $VERSION"
+          fi

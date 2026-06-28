@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VRC Bake Assistant</title>
+  <meta name="description" content="VRChatワールド制作者向けの無料ライトベイク手順化ツール。ALCOM / VCC対応のVPM Repositoryで配布しています。">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">Free VPM package for VRChat world creators</p>
+      <h1>VRC Bake Assistant</h1>
+      <p class="lead">VRChatワールドのライトベイク作業を、上から順に進められる手順にする無料Unityエディター拡張です。</p>
+      <div class="badges">
+        <span>Free</span>
+        <span>MIT License</span>
+        <span>Unity 2022.3</span>
+        <span>ALCOM / VCC</span>
+      </div>
+      <div class="actions">
+        <a class="button primary" href="vcc://vpm/addRepo?url=https%3A%2F%2Fyushimatenjin.github.io%2Fvrc-bake-assistant%2Fvpm.json">ALCOM / VCC に追加</a>
+        <a class="button" href="vpm.json">vpm.jsonを見る</a>
+        <a class="button" href="https://github.com/yushimatenjin/vrc-bake-assistant">GitHub</a>
+      </div>
+      <p class="small">ボタンが反応しない場合は、ALCOMの <strong>Packages &gt; ADD REPOSITORY</strong> から次のURLを追加してください。</p>
+      <pre><code>https://yushimatenjin.github.io/vrc-bake-assistant/vpm.json</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>これは何？</h2>
+      <p>Lightmap、Light Probe、Reflection Probe、Static設定、UV2チェック、Bake開始など、Unity内で場所が散らばりがちなライトベイク作業を1つのウィンドウにまとめる補助ツールです。</p>
+      <p>「まず練習用シーンで流れを覚える」→「自分のワールドを診断する」→「ProbeやLighting Settingsを整える」→「軽い設定で試し焼きする」という進め方を想定しています。</p>
+    </section>
+
+    <section class="card">
+      <h2>できること</h2>
+      <ul>
+        <li>ライトベイク用の練習シーンを作成</li>
+        <li>Static / UV2 / Light / Light Probe / Reflection Probe の簡易診断</li>
+        <li>Practice / Quest / PC / Final のLighting Settingsプリセット</li>
+        <li>Light Probe GridとBaked Reflection Probeの生成補助</li>
+        <li>UnityのGenerate Lightingをワンクリックで開始</li>
+      </ul>
+    </section>
+
+    <section class="card grid-card">
+      <h2>ALCOMでの導入</h2>
+      <ol>
+        <li>ALCOMを開きます。</li>
+        <li><strong>Packages</strong> から <strong>ADD REPOSITORY</strong> を押します。</li>
+        <li><code>https://yushimatenjin.github.io/vrc-bake-assistant/vpm.json</code> を追加します。</li>
+        <li>対象プロジェクトの <strong>Manage Project</strong> から <strong>VRC Bake Assistant</strong> を追加します。</li>
+        <li>Unityで <strong>Tools &gt; VRC Bake Assistant &gt; Open</strong> を開きます。</li>
+      </ol>
+    </section>
+
+    <section class="card notice">
+      <h2>注意</h2>
+      <p>本ツールはライトベイク作業を補助するエディター拡張です。すべてのワールドで最適な見た目を自動保証するものではありません。使用前にプロジェクトのバックアップを推奨します。</p>
+      <p>この配布は無料公開前提です。GitHub Pages上のVPMリポジトリJSONとGitHub Releasesのzipを使ってALCOM/VCCに届ける構成です。</p>
+    </section>
+  </main>
+  <footer>
+    <p>© yushimatenjin. Package ID: <code>com.yushimatenjin.vrc-bake-assistant</code>. License: MIT.</p>
+  </footer>
+</body>
+</html>
