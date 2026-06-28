@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import hashlib
 import json
+import stat
 import zipfile
 from pathlib import Path
 
@@ -8,6 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ID = "com.yushimatenjin.vrc-bake-assistant"
 PACKAGE_DIR = ROOT / "Packages" / PACKAGE_ID
 DIST_DIR = ROOT / "Dist"
+
+# ZIPのmtimeが変わるとSHA256も変わるため、固定時刻で再現性のあるzipを作ります。
+# ZIP仕様上の最小日付は1980年です。
+FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 manifest_path = PACKAGE_DIR / "package.json"
 if not manifest_path.exists():
@@ -25,8 +30,15 @@ for old_zip in DIST_DIR.glob(f"{name}-*.zip"):
 
 with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
     for path in sorted(PACKAGE_DIR.rglob("*")):
-        if path.is_file():
-            zf.write(path, path.relative_to(PACKAGE_DIR).as_posix())
+        if not path.is_file():
+            continue
+        rel = path.relative_to(PACKAGE_DIR).as_posix()
+        info = zipfile.ZipInfo(rel, FIXED_ZIP_TIME)
+        info.compress_type = zipfile.ZIP_DEFLATED
+        # 通常ファイル 0644。実行権限差分でSHAが変わるのを避けます。
+        info.external_attr = (stat.S_IFREG | 0o644) << 16
+        data = path.read_bytes()
+        zf.writestr(info, data)
 
 sha256 = hashlib.sha256(zip_path.read_bytes()).hexdigest()
 print(f"Wrote {zip_path}")
