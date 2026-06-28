@@ -40,10 +40,12 @@ Unityのメニューから `Tools > YushimaTenjin > VRC Bake Assistant` を開�
 6. `ライトマップをベイク開始`
 7. 見た目が良ければ `PC向け標準` や `仕上げ確認（重い）` に上げる
 
-## 0.1.4 の主な改善
+## 0.1.6 の修正
 
-- Unity 2022.3.22f1でReflection Probe解像度欄がコンパイルエラーになる問題を修正。
+- Unity 2022.3.22f1で発生した `EditorGUILayout.IntPopup` のコンパイルエラーを修正しました。
+- 0.1.3の見える化機能はそのまま使えます。
 
+## 0.1.3 の主な改善
 
 - 練習シーンのHierarchy名を整理し、Guide / BakeTargets / NotBaked / Lights / Probes / Camera でまとまるようにしました。
 - Renderer一覧を追加し、Bake参加 / 未参加、UV2確認、動的っぽい名前の目安を見ながら切り替えられるようにしました。
@@ -63,3 +65,10 @@ Unityのメニューから `Tools > YushimaTenjin > VRC Bake Assistant` を開�
 ## 注意
 
 このツールはベイク作業を補助するエディター拡張です。すべてのワールドで最適な見た目を自動保証するものではありません。既存ワールドで使う前にバックアップをおすすめします。
+
+
+## 0.1.6 メニュー整理
+
+`Tools` メニューに複数の入口が出て分かりにくかったため、入口を `Tools > YushimaTenjin > VRC Bake Assistant` の1つに整理しました。
+
+古い `Assets/VRCBakeAssistant/Editor` や `Packages/com.peraperavrc.vrc-bake-assistant` が残っている場合は、同名ツールが引き続き表示されることがあります。VPM版を使う場合は `Packages/com.yushimatenjin.vrc-bake-assistant` だけを残してください。

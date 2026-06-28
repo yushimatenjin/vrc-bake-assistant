@@ -1,10 +1,27 @@
 # Changelog
 
-## 0.1.4 - Compile Fix
+## 0.1.6
 
-- Unity 2022.3.22f1で `EditorGUILayout.IntPopup` の `GUIContent` ラベル付き呼び出しがコンパイルエラーになる問題を修正しました。
-- Reflection Probe解像度欄は `PrefixLabel + IntPopup` の構成に変更しました。
-- UdonSharpのscene upgrade停止は、このC#コンパイルエラーの連鎖なので、本修正後に解消する想定です。
+- Windowを開いた瞬間にRenderer/Light一覧を自動取得しない安全モードへ変更。
+- Renderer一覧とLight一覧は折りたたみ状態で開始し、「一覧を更新」を押した時だけ取得するように変更。
+- Renderer一覧に取得上限を追加し、大きいワールドでOOMになりにくくしました。
+- UV2確認で `mesh.uv2` 配列を読まず、`Mesh.HasVertexAttribute(VertexAttribute.TexCoord1)` を使うように変更。
+- シーン内コンポーネント検索を `Resources.FindObjectsOfTypeAll` からActive SceneのRoot探索へ変更。
+- Window上に「重複コピーを確認」と「一覧キャッシュを空にする」を追加。
+- Toolsメニューは `Tools > YushimaTenjin > VRC Bake Assistant` の1つに整理。
+
+## 0.1.5 - Menu cleanup
+
+- `Tools` メニューの入口を `Tools > YushimaTenjin > VRC Bake Assistant` に一本化しました。
+- 互換用に残していた `Tools > VRC Bake Assistant > Open` と `Tools > VRC Bake Assistant > ライトベイク手順を開く` を削除しました。
+- 古い手動コピー版や別IDパッケージが残っている場合の確認メモを追加しました。
+
+
+## 0.1.4
+
+- Unity 2022.3.22f1で `EditorGUILayout.IntPopup` の引数型が合わずコンパイルエラーになる問題を修正しました。
+- Reflection Probe解像度のUIを、ラベル表示とIntPopup本体に分けました。
+- 機能追加は最小限で、0.1.3の見える化機能をそのまま維持しています。
 
 ## 0.1.3
 

@@ -52,24 +52,29 @@ namespace VRCBakeAssistant
         private bool useManualProbeBounds = false;
         private Vector3 manualProbeCenter = new Vector3(0f, 2.4f, 0f);
         private Vector3 manualProbeSize = new Vector3(11.5f, 5.2f, 11.5f);
-        private bool showProbeAdvanced = true;
+        private bool showProbeAdvanced = false;
 
-        private bool showBakeTargetList = true;
+        private bool showBakeTargetList = false;
         private bool showOnlyNotContributeGI = false;
         private string rendererSearch = string.Empty;
-        private int rendererListLimit = 80;
+        private int rendererListLimit = 50;
         private readonly List<RendererListItem> rendererItems = new List<RendererListItem>();
 
-        private bool showLightList = true;
+        private bool showLightList = false;
         private string lightSearch = string.Empty;
-        private int lightListLimit = 80;
+        private int lightListLimit = 50;
+        private int rendererRefreshScanLimit = 1200;
+        private bool rendererListUvCheck = false;
+        private bool rendererListHitLimit = false;
+        private bool lightListHitLimit = false;
+        private const int LightRefreshScanLimit = 2000;
         private readonly List<LightListItem> lightItems = new List<LightListItem>();
 
         private Vector2 scroll;
         private ScanReport lastReport;
         private BakeSnapshot cachedSnapshot;
 
-        private string statusMessage = "まずは『0から練習シーンを作る』を押すと、整理済みヒエラルキー・基本ライト・Probe入りの小さなシーンで流れを確認できます。";
+        private string statusMessage = "安全モード: Windowを開いただけではRenderer/Light一覧を自動取得しません。まずは練習シーン、または『現在のシーンを診断』から始めてください。";
         private MessageType statusType = MessageType.Info;
         private Action queuedAction;
         private string queuedActionLabel;
@@ -174,20 +179,8 @@ namespace VRCBakeAssistant
             public bool enabled;
         }
 
-        [MenuItem("Tools/YushimaTenjin/VRC Bake Assistant")]
+        [MenuItem("Tools/YushimaTenjin/VRC Bake Assistant", false, 1000)]
         public static void OpenFromYushimaTenjinMenu()
-        {
-            OpenWindow();
-        }
-
-        [MenuItem("Tools/VRC Bake Assistant/ライトベイク手順を開く")]
-        public static void OpenFromJapaneseMenu()
-        {
-            OpenWindow();
-        }
-
-        [MenuItem("Tools/VRC Bake Assistant/Open")]
-        public static void OpenFromLegacyMenu()
         {
             OpenWindow();
         }
@@ -228,7 +221,7 @@ namespace VRCBakeAssistant
                 EditorGUILayout.Space(8);
                 EditorGUILayout.LabelField("VRC Bake Assistant", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox(
-                    "VRChatワールドのライトベイクを、上から順番に確認できるようにするツールです。0.1.3では、Bake対象・ライト・Probeを一覧で見えるようにしました。",
+                    "VRChatワールドのライトベイクを、上から順番に確認できるようにするツールです。0.1.5では、0.1.3の見える化機能に加えてUnity 2022.3でのコンパイルエラーを修正しました。",
                     MessageType.Info);
 
                 DrawStatusPanel();
@@ -257,7 +250,44 @@ namespace VRCBakeAssistant
             {
                 EditorGUILayout.LabelField("フィードバック", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox(statusMessage, statusType);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("重複コピーを確認"))
+                    {
+                        QueueOperation("重複コピー確認", CheckDuplicateScriptCopies);
+                    }
+
+                    if (GUILayout.Button("一覧キャッシュを空にする"))
+                    {
+                        rendererItems.Clear();
+                        lightItems.Clear();
+                        SetStatus("Renderer/Light一覧キャッシュを空にしました。Windowを閉じずに軽くしたいときに使えます。", MessageType.Info);
+                    }
+                }
             }
+        }
+
+        private void CheckDuplicateScriptCopies()
+        {
+            string[] guids = AssetDatabase.FindAssets("VRCBakeAssistantWindow t:Script");
+            var paths = guids
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Where(path => !string.IsNullOrEmpty(path))
+                .Distinct()
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (paths.Count <= 1)
+            {
+                string only = paths.Count == 1 ? paths[0] : "見つかりませんでした";
+                SetStatus("重複コピーは見つかりませんでした。検出: " + only, MessageType.Info);
+                Debug.Log("[VRC Bake Assistant] 重複コピー確認: " + only);
+                return;
+            }
+
+            string message = "VRCBakeAssistantWindow.cs が複数あります。Toolsメニューが二重に出る原因になります。残すのは Packages/com.yushimatenjin.vrc-bake-assistant 側だけです。";
+            Debug.LogWarning("[VRC Bake Assistant] " + message + "\n" + string.Join("\n", paths.ToArray()));
+            SetStatus(message + " Consoleに場所を出しました。", MessageType.Warning);
         }
 
         private void DrawBakeStatus()
@@ -325,8 +355,8 @@ namespace VRCBakeAssistant
                     QueueOperation("練習シーン作成", () =>
                     {
                         CreatePracticeScene();
-                        RefreshRendererList();
-                        RefreshLightList();
+                        rendererItems.Clear();
+                        lightItems.Clear();
                         lastReport = ScanScene();
                         SetStatus("練習シーンを作成しました。Hierarchyは『Guide / BakeTargets / NotBaked / Lights / Probes / Camera』に分けています。次は『現在のシーンを診断』で確認してください。", MessageType.Info);
                     });
@@ -348,8 +378,8 @@ namespace VRCBakeAssistant
                         QueueOperation("原点の軸を追加", () =>
                         {
                             CreateOrUpdateAxisGuide();
-                            RefreshRendererList();
-                            SetStatus("原点の軸を追加しました。赤=X、緑=Y、青=Zの目印です。", MessageType.Info);
+                            rendererItems.Clear();
+                            SetStatus("原点の軸を追加しました。赤=X、緑=Y、青=Zの目印です。必要ならRenderer一覧を更新してください。", MessageType.Info);
                         });
                     }
                 }
@@ -367,8 +397,6 @@ namespace VRCBakeAssistant
                 {
                     QueueOperation("シーン診断", () =>
                     {
-                        RefreshRendererList();
-                        RefreshLightList();
                         lastReport = ScanScene();
                         SetStatus(lastReport.warnings.Count == 0
                             ? "診断完了。ベイクに必要な基本要素はそろっています。"
@@ -484,6 +512,11 @@ namespace VRCBakeAssistant
                     });
                 }
 
+                EditorGUILayout.Space(4);
+                EditorGUILayout.HelpBox("大きいワールドではRenderer一覧の取得が重いことがあります。0.1.6では自動取得せず、『一覧を更新』を押したときだけ集めます。OOM対策として、まずは最大取得数を小さめにしてください。", MessageType.None);
+                rendererRefreshScanLimit = EditorGUILayout.IntSlider(new GUIContent("一覧取得の上限", "大きいシーンでメモリを使いすぎないため、Renderer一覧に集める最大数です。"), rendererRefreshScanLimit, 100, 5000);
+                rendererListUvCheck = EditorGUILayout.ToggleLeft(new GUIContent("一覧更新時にUV2不足も確認する（重い場合OFF推奨）", "MeshのUVチャンネル確認も行います。重いワールドではOFFのままがおすすめです。"), rendererListUvCheck);
+
                 DrawRendererBakeTargetList();
             }
         }
@@ -515,7 +548,13 @@ namespace VRCBakeAssistant
 
                 if (rendererItems.Count == 0)
                 {
-                    RefreshRendererList();
+                    EditorGUILayout.HelpBox("Renderer一覧はまだ取得していません。必要なときだけ『一覧を更新』を押してください。", MessageType.None);
+                    return;
+                }
+
+                if (rendererListHitLimit)
+                {
+                    EditorGUILayout.HelpBox("一覧取得の上限に達しました。検索や選択範囲モードを使うか、必要な場合だけ上限を上げてください。", MessageType.Warning);
                 }
 
                 var filtered = GetFilteredRendererItems().ToList();
@@ -695,7 +734,16 @@ namespace VRCBakeAssistant
                 }
 
                 lightListLimit = EditorGUILayout.IntSlider("最大表示数", lightListLimit, 20, 300);
-                if (lightItems.Count == 0) RefreshLightList();
+                if (lightItems.Count == 0)
+                {
+                    EditorGUILayout.HelpBox("Light一覧はまだ取得していません。必要なときだけ『一覧を更新』を押してください。", MessageType.None);
+                    return;
+                }
+
+                if (lightListHitLimit)
+                {
+                    EditorGUILayout.HelpBox("Light一覧の取得上限に達しました。検索や選択範囲モードを使うか、不要なLightを整理してください。", MessageType.Warning);
+                }
 
                 var filtered = GetFilteredLightItems().ToList();
                 EditorGUILayout.LabelField("表示", $"{Mathf.Min(filtered.Count, lightListLimit)} / {filtered.Count} 件（全 {lightItems.Count} 件）");
@@ -809,17 +857,20 @@ namespace VRCBakeAssistant
                             QueueOperation("Probe範囲ガイド", () =>
                             {
                                 bool ok = CreateOrUpdateProbeBoundsGuide();
-                                RefreshRendererList();
-                                SetStatus(ok ? "Light Probe配置範囲のガイドを表示しました。黄色い枠の中にProbeを置くイメージです。" : "Probe範囲ガイドを作成できませんでした。", ok ? MessageType.Info : MessageType.Warning);
+                                rendererItems.Clear();
+                                SetStatus(ok ? "Light Probe配置範囲のガイドを表示しました。黄色い枠の中にProbeを置くイメージです。必要ならRenderer一覧を更新してください。" : "Probe範囲ガイドを作成できませんでした。", ok ? MessageType.Info : MessageType.Warning);
                             });
                         }
                     }
                 }
 
-                reflectionProbeResolution = EditorGUILayout.IntPopup("Reflection Probe解像度", reflectionProbeResolution,
-                    new[] { "64", "128", "256", "512" },
-                    new[] { 64, 128, 256, 512 });
-                EditorGUILayout.HelpBox("反射の解像度です。まずは128、重い場合は64。数値を上げるほど反射はきれいになりますが、ベイク時間と容量が増えます。", MessageType.None);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(new GUIContent("Reflection Probe解像度", "反射の解像度です。まずは128、重い場合は64。"), GUILayout.Width(170));
+                    reflectionProbeResolution = EditorGUILayout.IntPopup(reflectionProbeResolution,
+                        new[] { "64", "128", "256", "512" },
+                        new[] { 64, 128, 256, 512 });
+                }
                 reflectionProbeBoxProjection = EditorGUILayout.ToggleLeft("Box Projectionを有効化", reflectionProbeBoxProjection);
 
                 if (GUILayout.Button(selectionOnly ? "選択範囲にLight Probe Gridを作成/更新" : "シーン範囲にLight Probe Gridを作成/更新"))
@@ -903,7 +954,7 @@ namespace VRCBakeAssistant
                         {
                             SaveBakeSnapshot();
                             cachedSnapshot = LoadBakeSnapshot();
-                            RefreshLightList();
+                            lightItems.Clear();
                             lastReport = ScanScene();
                             SetStatus("現在のBaked/Mixedライト状態を前回Bakeメモとして記録しました。外部のLightingウィンドウでBakeした後の基準合わせに使えます。", MessageType.Info);
                         });
@@ -942,7 +993,7 @@ namespace VRCBakeAssistant
                     {
                         DeleteBakeSnapshot();
                         cachedSnapshot = null;
-                        RefreshLightList();
+                        lightItems.Clear();
                         lastReport = ScanScene();
                         SetStatus("前回Bakeメモを削除しました。次回Bake完了時に作り直されます。", MessageType.Warning);
                     });
@@ -1180,9 +1231,18 @@ namespace VRCBakeAssistant
         private void RefreshRendererList()
         {
             rendererItems.Clear();
+            rendererListHitLimit = false;
+            int scanned = 0;
+
             foreach (var renderer in GetTargetRenderers())
             {
                 if (!IsBakeTargetRenderer(renderer)) continue;
+                if (scanned >= rendererRefreshScanLimit)
+                {
+                    rendererListHitLimit = true;
+                    break;
+                }
+
                 var flags = GameObjectUtility.GetStaticEditorFlags(renderer.gameObject);
                 rendererItems.Add(new RendererListItem
                 {
@@ -1190,10 +1250,11 @@ namespace VRCBakeAssistant
                     path = GetHierarchyPath(renderer.transform),
                     contributeGI = (flags & StaticEditorFlags.ContributeGI) != 0,
                     reflectionStatic = (flags & StaticEditorFlags.ReflectionProbeStatic) != 0,
-                    missingUv2 = RendererHasMissingUv2(renderer),
+                    missingUv2 = rendererListUvCheck && RendererHasMissingUv2(renderer),
                     likelyDynamic = IsLikelyDynamicRenderer(renderer),
                     typeName = renderer.GetType().Name
                 });
+                scanned++;
             }
         }
 
@@ -1217,8 +1278,17 @@ namespace VRCBakeAssistant
                 : cachedSnapshot.lights.Where(l => !string.IsNullOrEmpty(l.globalId)).GroupBy(l => l.globalId).ToDictionary(g => g.Key, g => g.First());
 
             lightItems.Clear();
+            lightListHitLimit = false;
+            int scanned = 0;
+
             foreach (var light in FindSceneComponents<Light>(includeInactive))
             {
+                if (scanned >= LightRefreshScanLimit)
+                {
+                    lightListHitLimit = true;
+                    break;
+                }
+
                 var current = CreateLightSnapshot(light);
                 bool isNew = light.lightmapBakeType != LightmapBakeType.Realtime && cachedSnapshot != null && !oldById.ContainsKey(current.globalId);
                 bool changed = false;
@@ -1235,6 +1305,7 @@ namespace VRCBakeAssistant
                     newSinceLastBake = isNew,
                     changedSinceLastBake = changed
                 });
+                scanned++;
             }
         }
 
@@ -2081,15 +2152,23 @@ namespace VRCBakeAssistant
 
         private static IEnumerable<T> FindSceneComponents<T>(bool includeInactiveObjects) where T : Component
         {
-            foreach (var component in Resources.FindObjectsOfTypeAll<T>())
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || !scene.isLoaded) yield break;
+
+            var roots = scene.GetRootGameObjects();
+            for (int i = 0; i < roots.Length; i++)
             {
-                if (component == null) continue;
-                var go = component.gameObject;
-                if (go == null) continue;
-                if (!go.scene.IsValid()) continue;
-                if (EditorUtility.IsPersistent(go)) continue;
-                if (!includeInactiveObjects && !go.activeInHierarchy) continue;
-                yield return component;
+                var root = roots[i];
+                if (root == null) continue;
+                if (!includeInactiveObjects && !root.activeInHierarchy) continue;
+
+                var components = root.GetComponentsInChildren<T>(includeInactiveObjects);
+                for (int c = 0; c < components.Length; c++)
+                {
+                    var component = components[c];
+                    if (component == null) continue;
+                    yield return component;
+                }
             }
         }
 
@@ -2143,8 +2222,9 @@ namespace VRCBakeAssistant
             if (string.IsNullOrEmpty(path)) return false;
             if (path.Contains("unity_builtin_extra")) return false;
 
-            var uv2 = mesh.uv2;
-            return uv2 == null || uv2.Length == 0;
+            // mesh.uv2 は配列を返すため、大きいMeshではEditorメモリを大きく消費します。
+            // チャンネルの有無だけを確認するため、配列を作らない HasVertexAttribute を使います。
+            return !mesh.HasVertexAttribute(VertexAttribute.TexCoord1);
         }
 
         private static bool IsContributeGI(GameObject go)
@@ -2397,8 +2477,8 @@ namespace VRCBakeAssistant
         {
             Debug.Log("[VRC Bake Assistant] ベイク完了。");
             SaveBakeSnapshot();
-            RefreshRendererList();
-            RefreshLightList();
+            rendererItems.Clear();
+            lightItems.Clear();
             lastReport = ScanScene();
             SetStatus("ベイクが完了しました。前回Bakeメモを保存しました。シーンビューで明るさ、アバター位置、金属球の反射を確認してください。", MessageType.Info);
             Repaint();
