@@ -72,3 +72,16 @@ Unityのメニューから `Tools > YushimaTenjin > VRC Bake Assistant` を開�
 `Tools` メニューに複数の入口が出て分かりにくかったため、入口を `Tools > YushimaTenjin > VRC Bake Assistant` の1つに整理しました。
 
 古い `Assets/VRCBakeAssistant/Editor` や `Packages/com.peraperavrc.vrc-bake-assistant` が残っている場合は、同名ツールが引き続き表示されることがあります。VPM版を使う場合は `Packages/com.yushimatenjin.vrc-bake-assistant` だけを残してください。
+
+## 0.1.7: Bake対応マテリアル複製/置換
+
+GLB/glTFastや購入アセットのMaterialで、ライトベイク後に見た目が馴染まない場合の確認用機能です。
+
+- Material一覧を手動更新で取得
+- Unlit / glTF / 特殊Shaderを「要確認」として表示
+- 元Materialは削除せず、`Assets/VRCBakeAssistant/GeneratedMaterials` にStandard Shader版の複製を作成
+- Renderer側のMaterial割り当てだけを置換
+- BaseColor / MainTex / Normal / Metallic / Smoothness / Emissionの一部をコピー
+- EmissionをBaked GIとして扱う設定を追加
+
+透明、Toon、特殊Shaderは見た目が変わりやすいです。まずはHierarchyで対象を選択し、「選択Rendererだけ置換」から試してください。

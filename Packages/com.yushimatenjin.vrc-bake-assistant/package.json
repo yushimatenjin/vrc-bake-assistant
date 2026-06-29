@@ -1,9 +1,9 @@
 {
   "name": "com.yushimatenjin.vrc-bake-assistant",
   "displayName": "VRC Bake Assistant",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "unity": "2022.3",
-  "description": "VRChatワールド制作者向けの無料ライトベイク手順化ツール。練習シーン、基本ライト、Light Probe、Reflection Probe、Bake対象Renderer一覧、Light一覧、Static/UV2チェック、Bake開始をUnityエディター上で案内します。0.1.6でWindow起動時の自動全走査を止め、OOM対策の安全モードにしました。",
+  "description": "VRChatワールド制作者向けの無料ライトベイク手順化ツール。練習シーン、基本ライト、Light Probe、Reflection Probe、Bake対象Renderer一覧、Light一覧、Static/UV2チェック、Bake開始に加え、0.1.7でGLB/glTFast・購入アセット向けのBake対応マテリアル複製/置換機能を追加しました。",
   "author": {
     "name": "yushimatenjin",
     "email": "yushimatenjin@users.noreply.github.com",
@@ -18,10 +18,14 @@
     "Light Probe",
     "Reflection Probe",
     "Bake",
-    "Editor Extension"
+    "Editor Extension",
+    "Material",
+    "Shader",
+    "glTF",
+    "glTFast"
   ],
   "category": "VRChat Worlds",
-  "url": "https://yushimatenjin.github.io/vrc-bake-assistant/packages/com.yushimatenjin.vrc-bake-assistant-0.1.6.zip",
+  "url": "https://yushimatenjin.github.io/yushimatenjin-vpm/packages/com.yushimatenjin.vrc-bake-assistant-0.1.7.zip",
   "changelogUrl": "https://github.com/yushimatenjin/vrc-bake-assistant/blob/main/Packages/com.yushimatenjin.vrc-bake-assistant/CHANGELOG.md",
-  "documentationUrl": "https://yushimatenjin.github.io/vrc-bake-assistant/"
+  "documentationUrl": "https://yushimatenjin.github.io/yushimatenjin-vpm/#com.yushimatenjin.vrc-bake-assistant"
 }

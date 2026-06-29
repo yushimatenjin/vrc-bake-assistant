@@ -26,7 +26,11 @@ for old_zip in DIST_DIR.glob(f"{name}-*.zip"):
 with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
     for path in sorted(PACKAGE_DIR.rglob("*")):
         if path.is_file():
-            zf.write(path, path.relative_to(PACKAGE_DIR).as_posix())
+            rel = path.relative_to(PACKAGE_DIR).as_posix()
+            info = zipfile.ZipInfo(rel, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            zf.writestr(info, path.read_bytes())
 
 sha256 = hashlib.sha256(zip_path.read_bytes()).hexdigest()
 print(f"Wrote {zip_path}")

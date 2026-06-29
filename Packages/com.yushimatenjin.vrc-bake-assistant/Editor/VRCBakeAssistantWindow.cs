@@ -23,6 +23,7 @@ namespace VRCBakeAssistant
         private const string LightingFolder = RootFolder + "/LightingSettings";
         private const string ReflectionFolder = RootFolder + "/BakedReflectionProbes";
         private const string MaterialFolder = RootFolder + "/Materials";
+        private const string GeneratedMaterialFolder = RootFolder + "/GeneratedMaterials";
         private const string ReportFolder = RootFolder + "/Reports";
         private const string BakeSnapshotAssetPath = ReportFolder + "/LastBakeSnapshot.json";
 
@@ -69,6 +70,17 @@ namespace VRCBakeAssistant
         private bool lightListHitLimit = false;
         private const int LightRefreshScanLimit = 2000;
         private readonly List<LightListItem> lightItems = new List<LightListItem>();
+
+        private bool showMaterialList = false;
+        private bool materialOnlyRisky = true;
+        private bool materialPreserveTransparency = true;
+        private bool materialCopyEmission = true;
+        private bool materialMakeEmissionBaked = true;
+        private string materialSearch = string.Empty;
+        private int materialListLimit = 50;
+        private int materialRefreshScanLimit = 1200;
+        private bool materialListHitLimit = false;
+        private readonly List<MaterialListItem> materialItems = new List<MaterialListItem>();
 
         private Vector2 scroll;
         private ScanReport lastReport;
@@ -158,6 +170,27 @@ namespace VRCBakeAssistant
             public bool newSinceLastBake;
         }
 
+        private sealed class MaterialListItem
+        {
+            public Material material;
+            public string assetPath;
+            public string shaderName;
+            public string status;
+            public int rendererUseCount;
+            public bool risky;
+            public bool likelyUnlit;
+            public bool likelyGltf;
+            public bool hasBakedEmission;
+        }
+
+        private enum StandardMaterialRenderingMode
+        {
+            Opaque = 0,
+            Cutout = 1,
+            Fade = 2,
+            Transparent = 3
+        }
+
         [Serializable]
         private sealed class BakeSnapshot
         {
@@ -221,7 +254,7 @@ namespace VRCBakeAssistant
                 EditorGUILayout.Space(8);
                 EditorGUILayout.LabelField("VRC Bake Assistant", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox(
-                    "VRChatワールドのライトベイクを、上から順番に確認できるようにするツールです。0.1.5では、0.1.3の見える化機能に加えてUnity 2022.3でのコンパイルエラーを修正しました。",
+                    "VRChatワールドのライトベイクを、上から順番に確認できるようにするツールです。0.1.7では、GLB/購入アセット向けにBake対応マテリアルの確認・複製・置換機能を追加しました。",
                     MessageType.Info);
 
                 DrawStatusPanel();
@@ -230,6 +263,7 @@ namespace VRCBakeAssistant
                 DrawStep0PracticeScene();
                 DrawStep1Scan();
                 DrawStep2StaticAndUv();
+                DrawStep3MaterialTools();
                 DrawStep3LightingPreset();
                 DrawStep4LightPlacement();
                 DrawStep5ProbeGeneration();
@@ -261,7 +295,8 @@ namespace VRCBakeAssistant
                     {
                         rendererItems.Clear();
                         lightItems.Clear();
-                        SetStatus("Renderer/Light一覧キャッシュを空にしました。Windowを閉じずに軽くしたいときに使えます。", MessageType.Info);
+                        materialItems.Clear();
+                        SetStatus("Renderer/Light/Material一覧キャッシュを空にしました。Windowを閉じずに軽くしたいときに使えます。", MessageType.Info);
                     }
                 }
             }
@@ -357,6 +392,7 @@ namespace VRCBakeAssistant
                         CreatePracticeScene();
                         rendererItems.Clear();
                         lightItems.Clear();
+                        materialItems.Clear();
                         lastReport = ScanScene();
                         SetStatus("練習シーンを作成しました。Hierarchyは『Guide / BakeTargets / NotBaked / Lights / Probes / Camera』に分けています。次は『現在のシーンを診断』で確認してください。", MessageType.Info);
                     });
@@ -513,7 +549,7 @@ namespace VRCBakeAssistant
                 }
 
                 EditorGUILayout.Space(4);
-                EditorGUILayout.HelpBox("大きいワールドではRenderer一覧の取得が重いことがあります。0.1.6では自動取得せず、『一覧を更新』を押したときだけ集めます。OOM対策として、まずは最大取得数を小さめにしてください。", MessageType.None);
+                EditorGUILayout.HelpBox("大きいワールドではRenderer/Material一覧の取得が重いことがあります。自動取得せず、『一覧を更新』を押したときだけ集めます。OOM対策として、まずは最大取得数を小さめにしてください。", MessageType.None);
                 rendererRefreshScanLimit = EditorGUILayout.IntSlider(new GUIContent("一覧取得の上限", "大きいシーンでメモリを使いすぎないため、Renderer一覧に集める最大数です。"), rendererRefreshScanLimit, 100, 5000);
                 rendererListUvCheck = EditorGUILayout.ToggleLeft(new GUIContent("一覧更新時にUV2不足も確認する（重い場合OFF推奨）", "MeshのUVチャンネル確認も行います。重いワールドではOFFのままがおすすめです。"), rendererListUvCheck);
 
@@ -611,11 +647,205 @@ namespace VRCBakeAssistant
             }
         }
 
+        private void DrawStep3MaterialTools()
+        {
+            using (new EditorGUILayout.VerticalScope("box"))
+            {
+                EditorGUILayout.LabelField("3. マテリアルをBake対応へ確認・複製置換", EditorStyles.boldLabel);
+                EditorGUILayout.HelpBox(
+                    "GLB/glTFastや購入アセットの一部Shaderは、見た目は出てもLightmapやLight Probeの結果を受けにくいことがあります。ここでは元マテリアルを壊さず、Standard Shaderの複製を作ってRenderer側だけ差し替えます。",
+                    MessageType.Info);
+                EditorGUILayout.HelpBox(
+                    "まずは『一覧を更新』で要確認マテリアルを見つけます。Unlit/glTF/特殊Shaderは候補です。置換後も元Materialは残るので、UnityのUndoや手動差し戻しができます。透明・Toon・特殊表現は見た目が変わりやすいので、選択範囲だけで試すのがおすすめです。",
+                    MessageType.None);
+
+                materialRefreshScanLimit = EditorGUILayout.IntSlider(new GUIContent("一覧取得の上限", "Rendererを何個まで見てMaterial一覧を作るかです。大きいワールドでは小さめから試してください。"), materialRefreshScanLimit, 100, 5000);
+                materialOnlyRisky = EditorGUILayout.ToggleLeft("要確認マテリアルだけ表示", materialOnlyRisky);
+                materialPreserveTransparency = EditorGUILayout.ToggleLeft(new GUIContent("透明/切り抜きっぽさをできるだけ引き継ぐ", "ON: Cutout/Fadeの設定を推測します。OFF: Opaque寄りにします。透明物はベイク表現が難しいため、まず選択範囲で確認してください。"), materialPreserveTransparency);
+                materialCopyEmission = EditorGUILayout.ToggleLeft(new GUIContent("Emissionを引き継ぐ", "看板や発光面の色・テクスチャをStandard側へコピーします。"), materialCopyEmission);
+                using (new EditorGUI.DisabledScope(!materialCopyEmission))
+                {
+                    materialMakeEmissionBaked = EditorGUILayout.ToggleLeft(new GUIContent("EmissionをBaked GIとして扱う", "発光マテリアルをベイクに参加させたいときONにします。強すぎる場合はMaterial側のEmission色を下げてください。"), materialMakeEmissionBaked);
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Material一覧を更新", GUILayout.Width(140)))
+                    {
+                        QueueOperation("Material一覧更新", () =>
+                        {
+                            RefreshMaterialList();
+                            SetStatus($"Material一覧を更新しました。{materialItems.Count} 個見つかりました。要確認: {materialItems.Count(i => i.risky)} 個。", MessageType.Info);
+                        });
+                    }
+
+                    if (GUILayout.Button("選択RendererのMaterialだけ更新"))
+                    {
+                        QueueOperation("選択Material一覧更新", () =>
+                        {
+                            if (Selection.gameObjects.Length == 0)
+                            {
+                                materialItems.Clear();
+                                SetStatus("選択Rendererがありません。ProjectではなくHierarchy上のオブジェクトを選択してから押してください。", MessageType.Warning);
+                                return;
+                            }
+
+                            bool oldSelectionOnly = selectionOnly;
+                            selectionOnly = true;
+                            RefreshMaterialList();
+                            selectionOnly = oldSelectionOnly;
+                            SetStatus($"選択Renderer配下のMaterial一覧を更新しました。{materialItems.Count} 個見つかりました。", MessageType.Info);
+                        });
+                    }
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("要確認MaterialをBake対応コピーに置換"))
+                    {
+                        QueueOperation("要確認Material置換", () =>
+                        {
+                            if (materialItems.Count == 0) RefreshMaterialList();
+                            int candidateCount = materialItems.Count(i => i.risky);
+                            if (candidateCount > 0 && !EditorUtility.DisplayDialog("要確認Materialを置換", $"要確認Material {candidateCount} 個をStandard Shaderの複製へ置換します。元Materialは削除されませんが、見た目が変わる可能性があります。まず小さい範囲で試すのがおすすめです。", "置換する", "キャンセル"))
+                            {
+                                SetStatus("Material置換をキャンセルしました。", MessageType.Info);
+                                return;
+                            }
+                            int changedRenderers = ConvertAndAssignMaterials(materialItems.Where(i => i.risky).Select(i => i.material));
+                            RefreshMaterialList();
+                            lastReport = ScanScene();
+                            SetStatus(changedRenderers == 0
+                                ? "置換対象はありませんでした。Material一覧で候補を確認してください。"
+                                : $"要確認MaterialのBake対応コピーを作成し、Renderer {changedRenderers} 個の割り当てを置換しました。GeneratedMaterialsに元Material別のコピーがあります。",
+                                changedRenderers == 0 ? MessageType.Warning : MessageType.Info);
+                        });
+                    }
+
+                    if (GUILayout.Button("選択Rendererだけ置換"))
+                    {
+                        QueueOperation("選択RendererMaterial置換", () =>
+                        {
+                            int changedRenderers = ConvertAndAssignSelectedRendererMaterials();
+                            RefreshMaterialList();
+                            lastReport = ScanScene();
+                            SetStatus(changedRenderers == 0
+                                ? "選択Rendererに置換できるMaterialがありませんでした。"
+                                : $"選択Renderer配下のMaterialをBake対応コピーへ置換しました。変更Renderer: {changedRenderers} 個。",
+                                changedRenderers == 0 ? MessageType.Warning : MessageType.Info);
+                        });
+                    }
+                }
+
+                DrawMaterialList();
+            }
+        }
+
+        private void DrawMaterialList()
+        {
+            showMaterialList = EditorGUILayout.Foldout(showMaterialList, "Material一覧：ShaderとBake向きかを確認する", true);
+            if (!showMaterialList) return;
+
+            using (new EditorGUILayout.VerticalScope("box"))
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField("検索", GUILayout.Width(32));
+                    materialSearch = EditorGUILayout.TextField(materialSearch);
+                    if (GUILayout.Button("一覧を更新", GUILayout.Width(96)))
+                    {
+                        QueueOperation("Material一覧更新", () =>
+                        {
+                            RefreshMaterialList();
+                            SetStatus($"Material一覧を更新しました。{materialItems.Count} 個見つかりました。", MessageType.Info);
+                        });
+                    }
+                }
+
+                materialListLimit = EditorGUILayout.IntSlider("最大表示数", materialListLimit, 20, 300);
+
+                if (materialItems.Count == 0)
+                {
+                    EditorGUILayout.HelpBox("Material一覧はまだ取得していません。大きいワールドでは重くなることがあるため、必要なときだけ『Material一覧を更新』を押してください。", MessageType.None);
+                    return;
+                }
+
+                if (materialListHitLimit)
+                {
+                    EditorGUILayout.HelpBox("Material一覧の取得上限に達しました。選択範囲モードや検索を使うか、上限を少し上げてください。", MessageType.Warning);
+                }
+
+                var filtered = GetFilteredMaterialItems().ToList();
+                EditorGUILayout.LabelField("表示", $"{Mathf.Min(filtered.Count, materialListLimit)} / {filtered.Count} 件（全 {materialItems.Count} 件）");
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.Label("選択", GUILayout.Width(44));
+                    GUILayout.Label("作成", GUILayout.Width(44));
+                    GUILayout.Label("置換", GUILayout.Width(44));
+                    GUILayout.Label("使用", GUILayout.Width(42));
+                    GUILayout.Label("状態", GUILayout.Width(120));
+                    GUILayout.Label("Material / Shader");
+                }
+
+                foreach (var item in filtered.Take(materialListLimit))
+                {
+                    if (item.material == null) continue;
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (GUILayout.Button("選択", GUILayout.Width(44)))
+                        {
+                            Selection.activeObject = item.material;
+                            EditorGUIUtility.PingObject(item.material);
+                        }
+
+                        if (GUILayout.Button("作成", GUILayout.Width(44)))
+                        {
+                            var source = item.material;
+                            QueueOperation("Bake対応Material作成", () =>
+                            {
+                                var converted = CreateOrUpdateBakeCompatibleMaterial(source);
+                                SetStatus(converted == null
+                                    ? "Bake対応Materialを作成できませんでした。Standard Shaderが見つからない可能性があります。"
+                                    : $"{source.name} のBake対応コピーを作成/更新しました: {AssetDatabase.GetAssetPath(converted)}",
+                                    converted == null ? MessageType.Warning : MessageType.Info);
+                            });
+                        }
+
+                        if (GUILayout.Button("置換", GUILayout.Width(44)))
+                        {
+                            var source = item.material;
+                            QueueOperation("Bake対応Material置換", () =>
+                            {
+                                var converted = CreateOrUpdateBakeCompatibleMaterial(source);
+                                int changed = converted == null ? 0 : ReplaceMaterialInTargetRenderers(source, converted);
+                                RefreshMaterialList();
+                                lastReport = ScanScene();
+                                SetStatus(changed == 0
+                                    ? $"{source.name} を使うRendererは対象範囲に見つかりませんでした。"
+                                    : $"{source.name} をBake対応コピーへ置換しました。変更Renderer: {changed} 個。",
+                                    changed == 0 ? MessageType.Warning : MessageType.Info);
+                            });
+                        }
+
+                        GUILayout.Label(item.rendererUseCount.ToString(CultureInfo.InvariantCulture), GUILayout.Width(42));
+                        GUILayout.Label(item.status, GUILayout.Width(120));
+                        GUILayout.Label($"{item.material.name} / {item.shaderName}", EditorStyles.wordWrappedMiniLabel);
+                    }
+                }
+
+                if (filtered.Count > materialListLimit)
+                {
+                    EditorGUILayout.HelpBox("表示数を超えています。検索するか最大表示数を上げてください。", MessageType.None);
+                }
+            }
+        }
+
         private void DrawStep3LightingPreset()
         {
             using (new EditorGUILayout.VerticalScope("box"))
             {
-                EditorGUILayout.LabelField("3. ベイク品質プリセット", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("4. ベイク品質プリセット", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox(
                     "ここで変わるのは、Lightmap解像度・サンプル数・Directional/Non-Directionalなどの『焼き込み品質』です。ライトやProbeの位置は変わりません。",
                     MessageType.Info);
@@ -643,7 +873,7 @@ namespace VRCBakeAssistant
         {
             using (new EditorGUILayout.VerticalScope("box"))
             {
-                EditorGUILayout.LabelField("4. ライトを配置・確認する", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("5. ライトを配置・確認する", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox(
                     "Bakeに使われるのは主にBaked / Mixedライトです。Realtimeライトはリアルタイムで効くので便利ですが、LightmapやLight Probeには焼き込まれません。",
                     MessageType.Info);
@@ -810,7 +1040,7 @@ namespace VRCBakeAssistant
         {
             using (new EditorGUILayout.VerticalScope("box"))
             {
-                EditorGUILayout.LabelField("5. Probeを配置する", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("6. Probeを配置する", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox(
                     "Light Probeはアバターや動く物をワールドの明るさに馴染ませるための目印です。Reflection Probeは金属・ガラス・水面などの反射を周囲に馴染ませます。",
                     MessageType.Info);
@@ -917,7 +1147,7 @@ namespace VRCBakeAssistant
         {
             using (new EditorGUILayout.VerticalScope("box"))
             {
-                EditorGUILayout.LabelField("6. ベイクする", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("7. ベイクする", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox(
                     "まずは『試し焼き（早い）』で見た目を確認し、良さそうなら『PC向け標準』や『仕上げ確認』に上げます。いきなり仕上げ設定にすると待ち時間が長くなりがちです。",
                     MessageType.Info);
@@ -967,7 +1197,7 @@ namespace VRCBakeAssistant
         {
             using (new EditorGUILayout.VerticalScope("box"))
             {
-                EditorGUILayout.LabelField("7. やり直し・掃除", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("8. やり直し・掃除", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox("Lighting Dataの削除は元に戻せません。必要なら先にシーンとプロジェクトをバックアップしてください。", MessageType.Warning);
 
                 if (GUILayout.Button("Lighting Data Assetをクリア"))
@@ -1141,12 +1371,12 @@ namespace VRCBakeAssistant
             CompareLightSnapshot(report, currentBakeLights);
 
             if (!report.hasLightingSettings)
-                report.warnings.Add("Lighting Settings Assetが割り当てられていません。3番でベイク品質プリセットを適用してください。");
+                report.warnings.Add("Lighting Settings Assetが割り当てられていません。4番でベイク品質プリセットを適用してください。");
             else
                 report.okMessages.Add("Lighting Settingsは設定済みです。");
 
             if (report.autoGenerate)
-                report.warnings.Add("Auto GenerateがONです。VRChatワールド制作では、意図しない再ベイクを避けるため手動ベイクがおすすめです。3番でOFFにします。");
+                report.warnings.Add("Auto GenerateがONです。VRChatワールド制作では、意図しない再ベイクを避けるため手動ベイクがおすすめです。4番でOFFにします。");
 
             if (report.renderers > 0 && report.giRenderers == 0)
                 report.warnings.Add("ライトマップ対象のRendererがありません。床・壁・動かない家具を2番でBake対象ONにしてください。");
@@ -1157,7 +1387,7 @@ namespace VRCBakeAssistant
                 report.warnings.Add($"UV2が無い可能性のあるライトマップ対象Rendererが {report.renderersWithoutUv2} 個あります。必要に応じてGenerate Lightmap UVsをONにしてください。");
 
             if (report.lights == 0)
-                report.warnings.Add("Lightがありません。4番で基本ライトセットを追加すると確認しやすくなります。");
+                report.warnings.Add("Lightがありません。5番で基本ライトセットを追加すると確認しやすくなります。");
             else
                 report.okMessages.Add($"Lightがあります。Bakeに使うライトはBaked/Mixedの {report.bakeRelevantLights} 個です。");
 
@@ -1165,12 +1395,12 @@ namespace VRCBakeAssistant
                 report.warnings.Add($"Realtimeライトが {report.realtimeLights} 個あります。Realtimeは実行時に効きますが、Lightmap/Light Probeには焼き込まれません。Bakeで見た目を固定したいライトはBakedかMixedにしてください。");
 
             if (report.lightProbeGroups == 0)
-                report.warnings.Add("Light Probe Groupがありません。アバターや動くオブジェクトの明るさがワールドに馴染みにくくなります。5番で作成してください。");
+                report.warnings.Add("Light Probe Groupがありません。アバターや動くオブジェクトの明るさがワールドに馴染みにくくなります。6番で作成してください。");
             else
                 report.okMessages.Add("Light Probe Groupがあります。アバターの明るさ確認に使えます。");
 
             if (report.reflectionProbes == 0)
-                report.warnings.Add("Reflection Probeがありません。金属・ガラス・水面などの反射が環境に馴染みにくくなります。5番で作成してください。");
+                report.warnings.Add("Reflection Probeがありません。金属・ガラス・水面などの反射が環境に馴染みにくくなります。6番で作成してください。");
             else
                 report.okMessages.Add("Reflection Probeがあります。金属やガラスの反射確認に使えます。");
 
@@ -1268,6 +1498,429 @@ namespace VRCBakeAssistant
                 items = items.Where(i => i.path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || i.typeName.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0);
             }
             return items.OrderBy(i => i.contributeGI).ThenBy(i => i.path, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private void RefreshMaterialList()
+        {
+            materialItems.Clear();
+            materialListHitLimit = false;
+
+            var useCounts = new Dictionary<Material, int>();
+            int scannedRenderers = 0;
+
+            foreach (var renderer in GetTargetRenderers())
+            {
+                if (!IsBakeTargetRenderer(renderer)) continue;
+                if (scannedRenderers >= materialRefreshScanLimit)
+                {
+                    materialListHitLimit = true;
+                    break;
+                }
+
+                var materials = renderer.sharedMaterials;
+                for (int i = 0; i < materials.Length; i++)
+                {
+                    var mat = materials[i];
+                    if (mat == null) continue;
+                    if (useCounts.TryGetValue(mat, out int count)) useCounts[mat] = count + 1;
+                    else useCounts.Add(mat, 1);
+                }
+                scannedRenderers++;
+            }
+
+            foreach (var pair in useCounts)
+            {
+                var mat = pair.Key;
+                if (mat == null) continue;
+                var item = CreateMaterialListItem(mat, pair.Value);
+                materialItems.Add(item);
+            }
+        }
+
+        private IEnumerable<MaterialListItem> GetFilteredMaterialItems()
+        {
+            IEnumerable<MaterialListItem> items = materialItems.Where(i => i.material != null);
+            if (materialOnlyRisky) items = items.Where(i => i.risky);
+            if (!string.IsNullOrWhiteSpace(materialSearch))
+            {
+                string q = materialSearch.Trim();
+                items = items.Where(i =>
+                    i.material.name.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0
+                    || i.shaderName.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0
+                    || i.assetPath.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0
+                    || i.status.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0);
+            }
+            return items.OrderByDescending(i => i.risky).ThenBy(i => i.material.name, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static MaterialListItem CreateMaterialListItem(Material mat, int rendererUseCount)
+        {
+            string shaderName = mat.shader != null ? mat.shader.name : "Shaderなし";
+            bool generated = IsGeneratedBakeMaterial(mat);
+            bool standard = string.Equals(shaderName, "Standard", StringComparison.OrdinalIgnoreCase);
+            bool unlit = shaderName.IndexOf("Unlit", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool gltf = shaderName.IndexOf("glTF", StringComparison.OrdinalIgnoreCase) >= 0 || shaderName.IndexOf("gltf", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool error = shaderName.IndexOf("Hidden/InternalErrorShader", StringComparison.OrdinalIgnoreCase) >= 0 || mat.shader == null;
+            bool custom = !standard && !generated;
+            bool bakedEmission = (mat.globalIlluminationFlags & MaterialGlobalIlluminationFlags.BakedEmissive) != 0;
+
+            string status;
+            bool risky;
+            if (generated)
+            {
+                status = "生成済み";
+                risky = false;
+            }
+            else if (error)
+            {
+                status = "Shader不明";
+                risky = true;
+            }
+            else if (unlit)
+            {
+                status = "Unlit要確認";
+                risky = true;
+            }
+            else if (gltf)
+            {
+                status = "glTF要確認";
+                risky = true;
+            }
+            else if (standard)
+            {
+                status = bakedEmission ? "Standard/発光Bake" : "Standard";
+                risky = false;
+            }
+            else if (custom)
+            {
+                status = "特殊Shader";
+                risky = true;
+            }
+            else
+            {
+                status = "確認";
+                risky = true;
+            }
+
+            return new MaterialListItem
+            {
+                material = mat,
+                assetPath = AssetDatabase.GetAssetPath(mat),
+                shaderName = shaderName,
+                status = status,
+                rendererUseCount = rendererUseCount,
+                risky = risky,
+                likelyUnlit = unlit,
+                likelyGltf = gltf,
+                hasBakedEmission = bakedEmission
+            };
+        }
+
+        private int ConvertAndAssignMaterials(IEnumerable<Material> sourceMaterials)
+        {
+            var unique = sourceMaterials.Where(m => m != null).Distinct().ToList();
+            int changedRenderers = 0;
+            foreach (var source in unique)
+            {
+                var converted = CreateOrUpdateBakeCompatibleMaterial(source);
+                if (converted == null) continue;
+                changedRenderers += ReplaceMaterialInTargetRenderers(source, converted);
+            }
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return changedRenderers;
+        }
+
+        private int ConvertAndAssignSelectedRendererMaterials()
+        {
+            var materials = new HashSet<Material>();
+            foreach (var renderer in Selection.gameObjects.SelectMany(go => go.GetComponentsInChildren<Renderer>(includeInactive)).Distinct())
+            {
+                if (!IsBakeTargetRenderer(renderer)) continue;
+                foreach (var mat in renderer.sharedMaterials)
+                {
+                    if (mat == null) continue;
+                    if (!CreateMaterialListItem(mat, 1).risky) continue;
+                    materials.Add(mat);
+                }
+            }
+            return ConvertAndAssignMaterials(materials);
+        }
+
+        private Material CreateOrUpdateBakeCompatibleMaterial(Material source)
+        {
+            if (source == null) return null;
+
+            var shader = Shader.Find("Standard");
+            if (shader == null)
+            {
+                Debug.LogWarning("[VRC Bake Assistant] Standard Shaderが見つからないため、Bake対応Materialを作成できませんでした。");
+                return null;
+            }
+
+            EnsureFolder(GeneratedMaterialFolder);
+            string sourceGuid = GetMaterialStableId(source);
+            string safeName = MakeSafeFileName(source.name);
+            string assetPath = $"{GeneratedMaterialFolder}/{safeName}_BakeStandard_{sourceGuid}.mat";
+
+            var target = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+            if (target == null)
+            {
+                target = new Material(shader) { name = $"{source.name}_BakeStandard" };
+                AssetDatabase.CreateAsset(target, assetPath);
+            }
+            else
+            {
+                Undo.RecordObject(target, "Update Bake Compatible Material");
+                target.shader = shader;
+            }
+
+            CopyMaterialToStandard(source, target);
+            EditorUtility.SetDirty(target);
+            AssetDatabase.SaveAssets();
+            return target;
+        }
+
+        private int ReplaceMaterialInTargetRenderers(Material source, Material converted)
+        {
+            if (source == null || converted == null || source == converted) return 0;
+
+            int changedRendererCount = 0;
+            foreach (var renderer in GetTargetRenderers())
+            {
+                if (renderer == null) continue;
+                var mats = renderer.sharedMaterials;
+                bool changed = false;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    if (mats[i] == source)
+                    {
+                        mats[i] = converted;
+                        changed = true;
+                    }
+                }
+
+                if (!changed) continue;
+                Undo.RecordObject(renderer, "Replace Bake Compatible Material");
+                renderer.sharedMaterials = mats;
+                EditorUtility.SetDirty(renderer);
+                changedRendererCount++;
+            }
+
+            if (changedRendererCount > 0)
+            {
+                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            }
+            return changedRendererCount;
+        }
+
+        private void CopyMaterialToStandard(Material source, Material target)
+        {
+            target.shader = Shader.Find("Standard") ?? target.shader;
+
+            Color baseColor = GetFirstColor(source, Color.white, "_Color", "_BaseColor", "_BaseColorFactor");
+            if (target.HasProperty("_Color")) target.SetColor("_Color", baseColor);
+            TryCopyTexture(source, target, "_MainTex", "_MainTex", "_BaseMap", "_BaseColorMap", "_BaseColorTexture", "baseColorTexture");
+
+            float metallic = GetFirstFloat(source, 0f, "_Metallic", "_MetallicFactor", "metallicFactor");
+            float smoothness = GetFirstFloat(source, -1f, "_Glossiness", "_Smoothness");
+            if (smoothness < 0f)
+            {
+                float roughness = GetFirstFloat(source, 0.55f, "_Roughness", "_RoughnessFactor", "roughnessFactor");
+                smoothness = 1f - roughness;
+            }
+
+            if (target.HasProperty("_Metallic")) target.SetFloat("_Metallic", Mathf.Clamp01(metallic));
+            if (target.HasProperty("_Glossiness")) target.SetFloat("_Glossiness", Mathf.Clamp01(smoothness));
+            TryCopyTexture(source, target, "_MetallicGlossMap", "_MetallicGlossMap");
+            if (target.HasProperty("_MetallicGlossMap") && target.GetTexture("_MetallicGlossMap") != null) target.EnableKeyword("_METALLICGLOSSMAP");
+            else target.DisableKeyword("_METALLICGLOSSMAP");
+
+            TryCopyTexture(source, target, "_BumpMap", "_BumpMap", "_NormalMap", "normalTexture");
+            if (target.HasProperty("_BumpMap") && target.GetTexture("_BumpMap") != null)
+            {
+                target.EnableKeyword("_NORMALMAP");
+                target.SetFloat("_BumpScale", GetFirstFloat(source, 1f, "_BumpScale", "_NormalScale"));
+            }
+            else
+            {
+                target.DisableKeyword("_NORMALMAP");
+            }
+
+            TryCopyTexture(source, target, "_OcclusionMap", "_OcclusionMap");
+            if (target.HasProperty("_OcclusionStrength")) target.SetFloat("_OcclusionStrength", GetFirstFloat(source, 1f, "_OcclusionStrength"));
+
+            if (materialCopyEmission)
+            {
+                Color emissionColor = GetFirstColor(source, Color.black, "_EmissionColor", "_EmissiveColor", "_EmissiveFactor", "emissiveFactor");
+                TryCopyTexture(source, target, "_EmissionMap", "_EmissionMap", "_EmissiveTexture", "emissiveTexture");
+                bool hasEmissionMap = target.HasProperty("_EmissionMap") && target.GetTexture("_EmissionMap") != null;
+                bool hasEmissionColor = emissionColor.maxColorComponent > 0.001f;
+                if (target.HasProperty("_EmissionColor")) target.SetColor("_EmissionColor", emissionColor);
+
+                if (hasEmissionMap || hasEmissionColor)
+                {
+                    target.EnableKeyword("_EMISSION");
+                    target.globalIlluminationFlags &= ~MaterialGlobalIlluminationFlags.EmissiveIsBlack;
+                    if (materialMakeEmissionBaked)
+                    {
+                        target.globalIlluminationFlags &= ~MaterialGlobalIlluminationFlags.RealtimeEmissive;
+                        target.globalIlluminationFlags |= MaterialGlobalIlluminationFlags.BakedEmissive;
+                    }
+                }
+                else
+                {
+                    target.DisableKeyword("_EMISSION");
+                    target.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
+                }
+            }
+            else
+            {
+                target.DisableKeyword("_EMISSION");
+                target.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
+            }
+
+            var mode = materialPreserveTransparency ? GuessStandardRenderingMode(source, baseColor) : StandardMaterialRenderingMode.Opaque;
+            SetupStandardRenderingMode(target, mode);
+        }
+
+        private static void SetupStandardRenderingMode(Material material, StandardMaterialRenderingMode mode)
+        {
+            if (material == null) return;
+            material.SetFloat("_Mode", (float)mode);
+
+            switch (mode)
+            {
+                case StandardMaterialRenderingMode.Opaque:
+                    material.SetOverrideTag("RenderType", "");
+                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                    material.SetInt("_ZWrite", 1);
+                    material.DisableKeyword("_ALPHATEST_ON");
+                    material.DisableKeyword("_ALPHABLEND_ON");
+                    material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                    material.renderQueue = -1;
+                    break;
+                case StandardMaterialRenderingMode.Cutout:
+                    material.SetOverrideTag("RenderType", "TransparentCutout");
+                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                    material.SetInt("_ZWrite", 1);
+                    material.EnableKeyword("_ALPHATEST_ON");
+                    material.DisableKeyword("_ALPHABLEND_ON");
+                    material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                    material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                    break;
+                case StandardMaterialRenderingMode.Fade:
+                    material.SetOverrideTag("RenderType", "Transparent");
+                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    material.SetInt("_ZWrite", 0);
+                    material.DisableKeyword("_ALPHATEST_ON");
+                    material.EnableKeyword("_ALPHABLEND_ON");
+                    material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                    material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                    break;
+                case StandardMaterialRenderingMode.Transparent:
+                    material.SetOverrideTag("RenderType", "Transparent");
+                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    material.SetInt("_ZWrite", 0);
+                    material.DisableKeyword("_ALPHATEST_ON");
+                    material.DisableKeyword("_ALPHABLEND_ON");
+                    material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+                    material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                    break;
+            }
+        }
+
+        private static StandardMaterialRenderingMode GuessStandardRenderingMode(Material source, Color baseColor)
+        {
+            string shaderName = source.shader != null ? source.shader.name : string.Empty;
+            string name = source.name ?? string.Empty;
+            bool cutout = source.IsKeywordEnabled("_ALPHATEST_ON")
+                          || HasTrueFloat(source, "_AlphaClip")
+                          || shaderName.IndexOf("Cutout", StringComparison.OrdinalIgnoreCase) >= 0
+                          || name.IndexOf("Cutout", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (cutout) return StandardMaterialRenderingMode.Cutout;
+
+            bool transparent = source.IsKeywordEnabled("_ALPHABLEND_ON")
+                               || source.IsKeywordEnabled("_ALPHAPREMULTIPLY_ON")
+                               || baseColor.a < 0.99f
+                               || shaderName.IndexOf("Transparent", StringComparison.OrdinalIgnoreCase) >= 0
+                               || name.IndexOf("Glass", StringComparison.OrdinalIgnoreCase) >= 0
+                               || name.IndexOf("透明", StringComparison.OrdinalIgnoreCase) >= 0;
+            return transparent ? StandardMaterialRenderingMode.Fade : StandardMaterialRenderingMode.Opaque;
+        }
+
+        private static bool HasTrueFloat(Material material, string property)
+        {
+            return material != null && material.HasProperty(property) && material.GetFloat(property) > 0.5f;
+        }
+
+        private static void TryCopyTexture(Material source, Material target, string targetProperty, params string[] sourceProperties)
+        {
+            if (source == null || target == null || !target.HasProperty(targetProperty)) return;
+            foreach (var sourceProperty in sourceProperties)
+            {
+                if (string.IsNullOrEmpty(sourceProperty) || !source.HasProperty(sourceProperty)) continue;
+                var texture = source.GetTexture(sourceProperty);
+                if (texture == null) continue;
+                target.SetTexture(targetProperty, texture);
+                try
+                {
+                    target.SetTextureScale(targetProperty, source.GetTextureScale(sourceProperty));
+                    target.SetTextureOffset(targetProperty, source.GetTextureOffset(sourceProperty));
+                }
+                catch (Exception)
+                {
+                    // 一部ShaderではScale/Offsetを持たない場合があります。Texture参照だけコピーします。
+                }
+                return;
+            }
+            target.SetTexture(targetProperty, null);
+        }
+
+        private static Color GetFirstColor(Material material, Color fallback, params string[] propertyNames)
+        {
+            if (material == null) return fallback;
+            foreach (var property in propertyNames)
+            {
+                if (string.IsNullOrEmpty(property) || !material.HasProperty(property)) continue;
+                try { return material.GetColor(property); }
+                catch (Exception) { return fallback; }
+            }
+            return fallback;
+        }
+
+        private static float GetFirstFloat(Material material, float fallback, params string[] propertyNames)
+        {
+            if (material == null) return fallback;
+            foreach (var property in propertyNames)
+            {
+                if (string.IsNullOrEmpty(property) || !material.HasProperty(property)) continue;
+                try { return material.GetFloat(property); }
+                catch (Exception) { return fallback; }
+            }
+            return fallback;
+        }
+
+        private static bool IsGeneratedBakeMaterial(Material material)
+        {
+            if (material == null) return false;
+            string path = AssetDatabase.GetAssetPath(material);
+            return !string.IsNullOrEmpty(path) && path.Replace('\\', '/').StartsWith(GeneratedMaterialFolder + "/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetMaterialStableId(Material material)
+        {
+            string path = AssetDatabase.GetAssetPath(material);
+            if (!string.IsNullOrEmpty(path))
+            {
+                string guid = AssetDatabase.AssetPathToGUID(path);
+                if (!string.IsNullOrEmpty(guid)) return guid.Substring(0, Mathf.Min(8, guid.Length));
+            }
+            return Mathf.Abs(material.GetInstanceID()).ToString(CultureInfo.InvariantCulture);
         }
 
         private void RefreshLightList()
@@ -1864,6 +2517,7 @@ namespace VRCBakeAssistant
             var floorMat = CreateOrLoadMaterial("VRCBake_Practice_Floor", new Color(0.45f, 0.42f, 0.38f), 0f, 0.45f);
             var metalMat = CreateOrLoadMaterial("VRCBake_Practice_Metal", new Color(0.8f, 0.75f, 0.68f), 1f, 0.9f);
             var blueMat = CreateOrLoadMaterial("VRCBake_Practice_Blue", new Color(0.2f, 0.35f, 0.75f), 0f, 0.5f);
+            var unlitImportedLikeMat = CreateOrLoadUnlitMaterial("VRCBake_Practice_UnlitImportedLike", new Color(0.95f, 0.45f, 0.25f));
 
             var objects = new List<GameObject>
             {
@@ -1872,7 +2526,8 @@ namespace VRCBakeAssistant
                 CreateCube("LeftWall_BakeTarget_左の壁", new Vector3(-5, 2.5f, 0), new Vector3(0.2f, 5, 10), wallMat, true),
                 CreateCube("RightWall_BakeTarget_右の壁", new Vector3(5, 2.5f, 0), new Vector3(0.2f, 5, 10), wallMat, true),
                 CreateCube("StaticBox_BakeTarget_影確認A", new Vector3(-2.5f, 0.5f, 1.5f), Vector3.one, blueMat, true),
-                CreateCube("StaticBox_BakeTarget_影確認B", new Vector3(2.2f, 0.75f, 0.5f), new Vector3(1.5f, 1.5f, 1.5f), wallMat, true)
+                CreateCube("StaticBox_BakeTarget_影確認B", new Vector3(2.2f, 0.75f, 0.5f), new Vector3(1.5f, 1.5f, 1.5f), wallMat, true),
+                CreateCube("ImportedGLBLike_Unlit_BakeTarget_マテリアル置換練習", new Vector3(0.0f, 0.65f, -3.0f), new Vector3(1.2f, 1.2f, 1.2f), unlitImportedLikeMat, true)
             };
 
             foreach (var go in objects)
@@ -2090,6 +2745,21 @@ namespace VRCBakeAssistant
                 mat.SetFloat("_Metallic", metallic);
                 mat.SetFloat("_Glossiness", smoothness);
             }
+            AssetDatabase.CreateAsset(mat, path);
+            AssetDatabase.SaveAssets();
+            return mat;
+        }
+
+        private static Material CreateOrLoadUnlitMaterial(string name, Color color)
+        {
+            EnsureFolder(MaterialFolder);
+            string path = $"{MaterialFolder}/{name}.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat != null) return mat;
+
+            var shader = Shader.Find("Unlit/Color") ?? Shader.Find("Unlit/Texture") ?? Shader.Find("Standard");
+            mat = new Material(shader) { name = name, color = color };
+            if (shader != null && mat.HasProperty("_Color")) mat.SetColor("_Color", color);
             AssetDatabase.CreateAsset(mat, path);
             AssetDatabase.SaveAssets();
             return mat;

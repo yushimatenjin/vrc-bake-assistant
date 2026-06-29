@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.7
+
+- GLB/glTFast・購入アセット向けのMaterial確認機能を追加しました。
+- Unlit / glTF / 特殊Shaderを「要確認」として表示するMaterial一覧を追加しました。
+- 元Materialを残したまま、Standard ShaderのBake対応コピーを `Assets/VRCBakeAssistant/GeneratedMaterials` に作る機能を追加しました。
+- Renderer側のMaterial割り当てをBake対応コピーへ置換する機能を追加しました。
+- BaseColor、MainTex、Normal、Metallic、Smoothness、Emissionの一部コピーに対応しました。
+- EmissionをBaked GIとして扱うオプションを追加しました。
+
+
 ## 0.1.6
 
 - Windowを開いた瞬間にRenderer/Light一覧を自動取得しない安全モードへ変更。
